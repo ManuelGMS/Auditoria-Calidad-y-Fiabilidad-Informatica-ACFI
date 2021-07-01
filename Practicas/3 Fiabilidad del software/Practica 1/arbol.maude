@@ -1,0 +1,65 @@
+fmod BT is
+
+	pr NAT .
+	
+	sorts Bst Bt .
+	subsort Bst < Bt .
+	
+	op 0 : -> Bst [ctor] .
+	op _[_,_]_ : Bt Nat Nat Bt -> Bt [ctor] .
+	
+	vars I D I1 I2: Bst .
+	vars K V K1 V1 K2 V2: Nat .
+	
+	mb 0 [ K, V ] 0 : Bst .
+	cmb 0 [ K, V ] (I [ K', V'] D) : Bst 
+		if K < K' /\ 
+			(I [ K', V'] D) : Bst .
+	
+	cmb (I [ K', V'] D) [ K, V ] 0 : Bst 
+		if K > K' /\ 
+			(I [ K', V'] D) : Bst .
+	
+	cmb (I1 [ K1, V1] D1) [ K, V ] (I2 [ K2, V2] D2) : Bst 
+		if K1 < K /\ K < K2 /\  
+			(I1 [ K1, V1] D1) : Bst /\ (I2 [ K2, V2] D2) : Bst .
+	
+	op mezcla : Nat Nat -> Nat .
+	eq mezcla (V, V') = V + V' .
+	
+	op inserta : Bst Nat Nat -> Bst .
+	eq inserta (0, K, V) = 0 [ K, V ] 0 .
+	ceq inserta (I [ K1, V1 ] D , K, V) =  inserta(I, K', V') [K, V] D
+		if K1 < K .
+	ceq inserta (I [ K1, V1 ] D , K, V) =  I [ K, V ] inserta(D, K', V')
+		if K < K1 .
+	eq inserta (I [ K, V1 ] D , K, V) =  I [ K, mezcla(V1, V) ] D .
+	
+	op busca : Bst Nat ~> Nat .
+	eq busca (I [ K, V ] D, K1 ) = 
+		if K == K1
+		then V
+		else
+			if K1 < K
+			then busca( I, K1 )
+			else busca( D, K1 )
+			fi
+		fi .
+	
+endfm
+
+fmod TEST is
+	pr BT .
+	
+	ops test1 test3 : -> Bst .
+	eq test1 = 0 [ 3,4 ] (0 [ 7,8 ] 0) .
+	op test2 : -> Bt.
+	eq test2 = 0 [ 13,4 ] (0 [ 7,8 ] 0) .
+	eq test3 = inserta(test2, 3, 5) .
+	
+endfm
+
+red test1 .
+red test2 .
+red inserta(test1, 3, 5) .
+red inserta(test1, 13, 5) .

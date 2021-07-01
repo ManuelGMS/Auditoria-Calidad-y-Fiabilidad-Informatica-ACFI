@@ -1,0 +1,295 @@
+fmod RED is
+ pr NAT .
+
+ sorts Localizacion Sistema Contenidos Nodo Msj .
+ subsort Localizacion < Sistema .
+ *** Define los subtipos entre Contenidos y Nodo y Msj
+
+ op none : -> Sistema [ctor] .
+ op {_|_} : Nat Contenidos -> Localizacion [ctor] . *** ID_LOC | CONTENIDOS
+ op __ : Sistema Sistema -> Sistema [ctor assoc comm id: none] .
+ 
+ *** EJERCICIO 1 Los "Contenidos" de una "Localizacion" son "un conjunto de nodos y mensajes". Define los
+ *** subsort y los operadores necesarios para definir esta estructura de datos. En el resto de la práctica
+ *** trabajaremos asumiendo que existe un único nodo en cada Localizacion.
+
+ subsort Nodo Msj < Contenidos . *** Los "Contenidos" son "un conjunto de nodos y mensajes".
+
+ op contenidoVacio : -> Contenidos [ctor] .
+ op _:_ : Contenidos Contenidos -> Contenidos [ctor assoc comm id: contenidoVacio] . *** No importa el orden (comm) ni las agrupaciones de elementos (assoc).
+
+ *** EJERCICIO 2 Los nodos tienen los siguientes constructores:
+ *** • Un constructor para extremos, que almacenan su propio identificador (String), el identificador de la
+ ***   localización (Nat) en la que se encuentra el centro de la estrella, un estado (puede ser inactivo,
+ ***   esperando y activo), una lista de identificadores de extremos (los “amigos” del extremo) y un
+ ***   String con los mensajes recibidos.
+ *** • Un constructor para el centro, que almacena su propio identificador (String), una tabla hash para asociar
+ ***   los identificadores de los extremos (String) con el identificador de su Localizacion y un estado (inactivo o activo).
+ ***        • No uses números naturales para identificar los nodos, para poder distinguir entre identificadores de nodos e identificadores de localizaciones. --> Usar Strings.
+ ***        • Es posible que te resulte más fácil definir la tabla hash en un módulo funcional separado que sea importado por RED.
+
+ pr STRING .
+
+ sort Estado .
+ ops inactivo activo esperando : -> Estado [ctor] .
+ op centro : String Diccionario Estado -> Nodo [ctor] .
+ op extremo : String Nat Estado Lista String -> Nodo [ctor] .
+ 
+ ***********************************************************************************************************************************************************************
+
+ sort Lista .
+ subsort String < Lista . 
+ op listaVacia : -> Lista [ctor] .
+ op _;_ : Lista Lista -> Lista [ctor assoc id: listaVacia] . *** Importa el orden (NO comm), tampoco las agrupaciones de los elementos (assoc).
+ 
+ 
+ var E : String .
+ var L L' : Lista .
+
+ op tam : Lista -> Nat .
+ eq tam(listaVacia) = 0 .
+ eq tam(E ; L) = 1 + tam(L) .
+
+ op obtenerPrimero : Lista ~> String .
+ eq obtenerPrimero(E ; L) = E .
+
+ op eliminarPrimero : Lista ~> String .
+ eq eliminarPrimero(E ; L) = L .
+
+ op estaEnLista? : String Lista -> Bool .
+ eq estaEnLista?(E, L ; E ; L') = true .
+ eq estaEnLista?(E, L) = false [owise] .
+
+ ***********************************************************************************************************************************************************************
+
+ sort Diccionario Pareja .
+ subsort Pareja < Diccionario . 
+ op <_,_> : String Nat -> Pareja [ctor] .
+ op diccionarioVacio : -> Diccionario [ctor] .
+ op _|_ : Diccionario Diccionario -> Diccionario [ctor assoc comm id: diccionarioVacio] . *** No importa el orden (comm) ni las agrupaciones de elementos (assoc).
+
+ var V : Nat .
+ var K : String .
+ var D : Diccionario .
+ 
+ op valorDeClave : Diccionario String ~> Nat .
+ eq valorDeClave(D | < K , V >, K) = V .
+ 
+ ***********************************************************************************************************************************************************************
+
+ *** EJERCICIO 3 Define un mensaje info, que tiene como argumentos:
+ *** • El identificador de la Localizacion en la que se encuentra el centro (es decir, un natural).
+ *** • El identificador de la Localizacion en la que se encuentra el extremo que manda el mensaje (es decir, otro natural).
+ *** • El identificador del extremo que manda el mensaje (un String).
+
+ op info : Nat Nat String -> Msj [ctor] .
+
+ *** EJERCICIO 4 Define un mensaje respuesta-info que tiene como argumento el identificador del nodo (String) al que va dirigido.
+
+ op respuesta-info : String -> Msj [ctor] .
+
+ *** EJERCICIO 5 Define un mensaje to_:_ que tiene como argumentos:
+ *** • El identificador (String) del nodo al que va dirigido.
+ *** • Un String con un mensaje.
+ 
+ op to_:_ : String String -> Msj [ctor] .
+
+ *** EJERCICIO 6 Define una función numNodos que cuenta el número de nodos en un sistema.
+ 
+ var SYS : Sistema .
+ var LOC : Localizacion .
+
+ op numNodos : Sistema -> Nat .
+ eq numNodos(none) = 0 .
+ eq numNodos(LOC SYS) = 1 + numNodos(SYS) . *** Asumiendo como dice el EJERCICIO 1 que hay 1 nodo por cada localización.
+
+ *** EJERCICIO 16 Contar el número de extremos del sistema.
+
+ var LOCID : Nat .
+ var LST : Lista .
+ var NOD : String .
+ var EST : Estado .
+ var CENTRO : Nat .
+ var MSG : String .
+ var CONT : Contenidos .
+ 
+ op cuentaExtremos : Sistema -> Nat .
+ eq cuentaExtremos({ LOCID | extremo(NOD, CENTRO, EST, LST, MSG) : CONT } SYS) = 1 + cuentaExtremos(SYS) .
+ eq cuentaExtremos(SYS) = 0 [owise] .
+
+endfm
+
+mod COMPORTAMIENTO is
+ *** Importa los modulos correspondientes
+ pr RED .
+
+ *** Define el comportamiento de la red mediante reglas
+ var EST : Estado .
+ var DCC : Diccionario .
+ var CONT CONT' : Contenidos .
+ var LOC LOC1 LOC2 CENTRO : Nat .
+ var LST OLD_LST NEW_LST : Lista .
+ var MSG OLD_MSG NEW_MSG NOD NOD1 NOD2 : String .
+
+ *** EJERCICIO 7 --> IGNORAR
+
+ *** EJERCICIO 8 Cuando un mensaje va dirigido a un nodo en otra localización tenemos las siguientes opciones:
+ *** • Los extremos mandan su mensaje al centro. --> EJERCICIO 11
+ *** • El centro usa su tabla hash para enviar el mensaje a la localización correcta.
+
+ crl [centroEnviaMensajeAlExtremo] :
+ { LOC1 | CONT } { LOC2 | (to NOD1 : NEW_MSG) : centro(NOD2, DCC, activo) : CONT' }
+ =>
+ { LOC1 | (to NOD1 : NEW_MSG) : CONT } { LOC2 | centro(NOD2, DCC, activo) : CONT' }
+ if LOC1 := valorDeClave(DCC, NOD1) .
+
+ *** EJERCICIO 9 El comportamiento del mensaje info es como sigue:
+ *** • El mensaje info lo envían los extremos en estado inactivo para indicar su dirección y su nombre. Al enviarlo pasa al estado esperando.
+ *** • Este mensaje es recibido por el centro y se utiliza para actualizar la tabla.
+ *** • El centro pasa de inactivo a activo en cuanto recibe uno de estos mensajes.
+ *** • En la misma regla el centro envía respuesta-info al extremo como respuesta.
+
+ *** info(ID_LOC_CENTRO_INT, ID_LOC_EXTREMO_INT, ID_EXTREMO_STR)
+ *** extremo(ID_NODO_STR, ID_LOC_CENTRO_INT, STATE, LIST_STR, MESSAGES_STR) 
+ *** centro(ID_NODO_STR, DICC<NOD,LOC>, STATE)
+
+ rl [extremoEsperando] : { LOC | extremo(NOD, CENTRO, inactivo, LST, MSG) } => { LOC | info(CENTRO, LOC, NOD) : extremo(NOD, CENTRO, esperando, LST, MSG) } .
+
+ rl [extremoEnviaInfoAlCentro] : 
+ { LOC1 | info(LOC2, LOC1, NOD1) : extremo(NOD1, LOC2, esperando, LST, MSG) } { LOC2 | CONT } 
+ => 
+ { LOC1 | extremo(NOD1, LOC2, esperando, LST, MSG) } { LOC2 | info(LOC2, LOC1, NOD1) : CONT } .
+
+ rl [centroActualizaInfo] : info(CENTRO, LOC, NOD1) : centro(NOD2, DCC, EST) => respuesta-info(NOD1) : centro(NOD2, < NOD1 , LOC > | DCC, activo) .
+
+ rl [centroEnviaAckAlExtremo] : 
+ { LOC1 | extremo(NOD1, LOC2, esperando, LST, MSG) } { LOC2 | respuesta-info(NOD1) : centro(NOD2, DCC, EST) : CONT } 
+ => 
+ { LOC1 | respuesta-info(NOD1) : extremo(NOD1, LOC2, esperando, LST, MSG) } { LOC2 | centro(NOD2, DCC, EST) : CONT } .
+
+ *** EJERCICIO 10 Cuando un extremo recibe el mensaje respuesta-info actualiza su estado y pasa a activo.
+
+ rl [extremoSeActiva] : respuesta-info(NOD) : extremo(NOD, CENTRO, esperando, LST, MSG) => extremo(NOD, CENTRO, activo, LST, MSG) .
+
+ *** EJERCICIO 11 Los nodos con amigos mandan un mensaje de la forma to_:_ a dichos amigos diciéndoles "hola". 
+ *** Asegúrate de que solo manden uno de estos mensajes a cada amigo (es válido borrar amigos de la lista).
+
+ crl [extremoCreaHolaAmigo] : extremo(NOD1, CENTRO, activo, OLD_LST, MSG) => (to NOD2 : "Hola") : extremo(NOD1, CENTRO, activo, NEW_LST, MSG)
+ if tam(OLD_LST) > 0 /\ NOD2 := obtenerPrimero(OLD_LST) /\ NEW_LST := eliminarPrimero(OLD_LST) .
+
+ crl [extremoEnviaHolaAmigoAlCentro] : 
+ { LOC1 | (to NOD : "Hola") : extremo(NOD1, LOC2, activo, LST, MSG) : CONT } { LOC2 | centro(NOD2, DCC, EST) : CONT' } 
+ => 
+ { LOC1 | extremo(NOD1, LOC2, activo, LST, MSG) : CONT } { LOC2 | (to NOD : "Hola ") : centro(NOD2, DCC, EST) : CONT' } 
+ if NOD =/= NOD1 .
+
+ *** EJERCICIO 12 Cuando un mensaje to_:_ llega a un nodo el mensaje se concatena a lo que ya habíamos recibido.
+
+ *** Actua a nivel del tipo Contenidos (subtérminos).
+ rl [procesarMensaje] : (to NOD : NEW_MSG) : extremo(NOD, CENTRO, EST, LST, OLD_MSG) => extremo(NOD, CENTRO, EST, LST, OLD_MSG + NEW_MSG) . 
+
+endm
+
+*** EJERCICIO 13 Define, en un módulo EJEMPLO, un sistema inicial con un centro y tres extremos, todos ellos inicialmente inactivos.
+*** Cada extremo es amigo de los otros dos extremos e inicialmente ha recibido "". Utiliza el comando rew para ejecutarlo.
+mod EJEMPLO is
+ 
+ *** Importa los modulos correspondientes
+ pr COMPORTAMIENTO .
+
+ *** Define un término inicial sobre el que probar las propiedades siguiendo el enunciado
+ *** red init = { 0 | ... }
+ ***            { 1 | ... }
+ ***            ...
+ *** extremo(ID_NODO_STR, ID_LOC_CENTRO_INT, STATE, LIST_STR, MESSAGES_STR) 
+ *** centro(ID_NODO_STR, DICC<NOD,LOC>, STATE)
+ op init : -> Sistema .
+ eq init = 
+ { 0 | centro("Z0:1", diccionarioVacio, inactivo) }
+ { 1 | extremo("Z1:1", 0, inactivo, "Z2:1" ; "Z3:1", "") } 
+ { 2 | extremo("Z2:1", 0, inactivo, "Z1:1" ; "Z3:1", "") } 
+ { 3 | extremo("Z3:1", 0, inactivo, "Z1:1" ; "Z2:1", "") } .
+
+endm
+
+*** EJERCICIO 14 Utiliza el comando search para comprobar que el número de nodos permanece invariable
+*** durante toda la ejecución.
+
+rew init . *** Aplica todas las reglas posibles al estado inicial hasta que ya no puedan aplicarse más.
+
+search in EJEMPLO : init =>! S:Sistema s.t. numNodos(S:Sistema) =/= numNodos(init) . *** Buscamos un estado final que cumpla tener menos de 4 nodos.
+
+*** Para poder cargar el módulo SATISFACTION.
+load model-checker
+
+mod PROPS is
+
+ *** EJERCICIO 15 Crea un módulo PROPS para definir propiedades de model checking y define el estado sobre
+ *** el que demostrarás las propiedades.
+
+ pr SATISFACTION .
+ pr EJEMPLO .
+
+ subsort Sistema < State .
+
+ *** EJERCICIO 16
+ *** Define propiedades para:
+
+ var ZONA : Nat .
+ var LST : Lista .
+ var MSG : String .
+ var EST : Estado .
+ var CENTRO NUM : Nat .
+ var SISTEMA : Sistema .
+ var DCC : Diccionario .
+ var ID ID1 ID2 : String .
+ var CONT CONT' : Contenidos .
+
+ *** Comprobar si un cierto nodo existe, dado su identificador. 
+ op existeNodo : String -> Prop [ctor] .
+ eq { ZONA | centro(ID, DCC, EST) : CONT } SISTEMA |= existeNodo(ID) = true .
+ eq { ZONA | extremo(ID, CENTRO, EST, LST, MSG) : CONT } SISTEMA |= existeNodo(ID) = true .
+ 
+ *** Comprobar si algún nodo tiene como amigo a un cierto nodo (dados los identificadores de ambos).
+ op unNodoAmigoDeOtro : String String -> Prop [ctor] .
+ eq { ZONA | extremo(ID1, CENTRO, EST, LST, MSG) : CONT } SISTEMA |= unNodoAmigoDeOtro(ID1,ID2) = estaEnLista?(ID2,LST) .
+
+ *** Comprobar si existe un mensaje de la forma to_:_ para un cierto nodo, dado su identificador.
+ op existeMensajeToPara : String -> Prop [ctor] .
+ eq { ZONA | (to ID : MSG) : CONT } SISTEMA |= existeMensajeToPara(ID) = true .
+
+ *** Comprobar si la cantidad de nodos es una cierta cantidad, dada como argumento.
+ op hayNodos : Nat -> Prop [ctor] .
+ eq SISTEMA |= hayNodos(NUM) = numNodos(SISTEMA) == NUM .
+ 
+ *** Comprobar si la cantidad de extremos es una cierta cantidad, dada como argumento. 
+ op hayExtremos : Nat -> Prop [ctor] .
+ eq SISTEMA |= hayExtremos(NUM) = cuentaExtremos(SISTEMA) == NUM .
+
+endm
+
+ *** Ejercicio 17
+ *** Comprueba las siguientes propiedades con el término inicial de la sección anterior:
+ ***    • La cantidad de nodos no varía.
+ ***    • Si un nodo existe y otro lo tiene como amigo, le acaba mandando un mensaje.
+ ***    • Cualquier mensaje acaba desapareciendo.
+
+mod TEST is
+ *** Importa los modulos correspondientes
+ pr PROPS .
+ pr MODEL-CHECKER .
+ pr LTL-SIMPLIFIER .
+endm
+
+*** eof
+
+*** Define y comprueba las propiedades
+
+*** Descripción: Siempre se cumple que ( si hay 4 nodos en el sistema ENTONCES Siempre hay 4 nodos en el sistema )
+red modelCheck(init, hayNodos(4) -> [](hayNodos(4)) ) . 
+
+*** Descripción: Siempre se cumple que ( Si existen dos nodos y uno es amigo del otro ENTONCES el uno generará un mensaje para el otro )
+red modelCheck(init, []( existeNodo("Z1:1") /\ existeNodo("Z2:1") /\ unNodoAmigoDeOtro("Z2:1","Z1:1") -> <>(existeMensajeToPara("Z1:1")) ) ) .
+
+*** Descripción: Siempre se cumple que ( Si existe un mensaje ENTONCES llegará un momento en el que ya no exista )
+red modelCheck(init, []( existeMensajeToPara("Z1:1") -> <>(~(existeMensajeToPara("Z1:1"))) ) ) .

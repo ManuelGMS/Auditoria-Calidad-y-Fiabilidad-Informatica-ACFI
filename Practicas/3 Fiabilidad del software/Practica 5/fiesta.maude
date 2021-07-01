@@ -1,0 +1,257 @@
+mod FIESTA is
+
+    *** Dentro del local, que tiene un aforo para 4 personas, están el manager (que tiene 23 años, el resto
+    *** de atributos, si es que los necesitas, puedes inventarlos), 6 unidades de alcohol y otras 5 unidades de
+    *** refresco. Puedes inventarte los nombres pero procura que no se repitan.
+
+    pr STRING .
+
+    *** EJERCICIO 1 Vamos a especificar una fiesta, que tiene que cumplir los siguientes requisitos:
+
+    sort Persona Conjunto Lista Fiesta .
+    subsort Persona < Lista .
+    subsort Persona < Conjunto .
+
+    var AFORO : Nat .
+    var COPAS : Nat .
+    var NOM : String .
+    var L L' : Lista .
+    var ALCOHOL : Nat .
+    var REFRESCOS : Nat .
+    var C C' : Conjunto .
+    var EDAD EDAD' : Nat .
+    var P P' P'' : Persona .
+    var STATUS STATUS' : Bool .
+
+    *** Fiesta es nuestro Sistema
+    *** Calle - Cola - Local - Aforo(4) - NumRefrescos(5) - NumAlcohol(6)
+    op fiesta : Conjunto Lista Conjunto Nat Nat Nat -> Fiesta [ctor] . 
+
+    *** Tenemos personas, que deben tener como mínimo nombre y edad (Se añade: Si es VIP (true) o NO_VIP(false))
+    *** Nombre - Edad - Status - Copas
+    op persona : String Nat Bool Nat -> Persona [ctor] .
+    op personaGetEdad : Persona -> Nat .
+    eq personaGetEdad(persona(NOM, EDAD, STATUS, COPAS)) = EDAD .
+    op personaGetStatus : Persona -> Bool .
+    eq personaGetStatus(persona(NOM, EDAD, STATUS, COPAS)) = STATUS .
+    op personaGetNombre : Persona -> String .
+    eq personaGetNombre(persona(NOM, EDAD, STATUS, COPAS)) = NOM .
+
+    *** El “espacio” de la fiesta se divide en tres partes: la gente que todavía no ha decidido si pasar (y
+    *** que no tiene orden), la gente que está esperando en una cola para entrar (tiene orden) y la gente que ya está dentro del local (no tiene orden).
+
+    *** Para representar la cola de espera.
+    op listaVacia : -> Lista [ctor] .
+    op _;_ : Lista Lista -> Lista [ctor assoc id: listaVacia] .    
+
+    *** Para representar el conjunto de gente indecisa en la calle y el conjunto de gente en el interior del local.
+    op conjuntoVacio : -> Conjunto [ctor] .
+    op _:_ : Conjunto Conjunto -> Conjunto [ctor assoc comm id: conjuntoVacio] .
+
+    *** Para contar el número de personas que hay en el interior del local (APARTADO 4 --> hayMenosDeTantasPersonas).
+    op cuentaPersonas : Conjunto -> Nat .
+    eq cuentaPersonas(conjuntoVacio) = 0 .
+    eq cuentaPersonas(P : C) = if personaGetNombre(P) == "Dabi"
+    then cuentaPersonas(C)
+    else 1 + cuentaPersonas(C)
+    fi . 
+
+    *** Cuando alguien decide que quiere entrar se pone en la cola. Pero resulta que hay dos tipos de
+    *** personas: los vip y los demás. Por tanto, los vips que se ponen a la cola se ponen exactamente
+    *** detrás del último vip (o en el primer lugar de la cola si no hay ninguno), mientras que los demás
+    *** se ponen al final.
+
+    op insertarPersonaEnCola : Lista Persona -> Lista .
+
+    *** A la cola vacía entra cualquiera.
+    eq insertarPersonaEnCola(listaVacia, P) = P .
+
+    *** Si el primero no es un VIP y justo entra un VIP, este se pone el primero.
+    ceq insertarPersonaEnCola(P ; L, P') = P' ; P ; L
+    if personaGetStatus(P) =/= true /\ personaGetStatus(P') == true .
+    
+    *** Si entra un no VIP, este siempre va al final.
+    ceq insertarPersonaEnCola(L, P) = L ; P
+    if personaGetStatus(P) =/= true .
+
+    *** Si hay personas VIP y no VIP en la cola, y entra un nuevo VIP, entonces ese nuevo VIP adelanta al último no VIP. 
+    ceq insertarPersonaEnCola(L ; P ; P' ; L', P'') = L ; P ; P'' ; P' ; L'
+    if personaGetStatus(P) == true /\ personaGetStatus(P') =/= true /\ personaGetStatus(P'') == true .
+    
+    *** Lista de solo Vips
+    ceq insertarPersonaEnCola(L ; P, P') = L ; P ; P'
+    if personaGetStatus(P) == true /\ personaGetStatus(P') == true .
+
+    *** El local tiene un aforo. Mientras no esté lleno, la primera persona de la cola puede pasar si es
+    *** mayor de 18 años. Si es menor se le echa de la cola y vuelve a la gente que no sabe qué hacer (en la calle indecisos).
+
+    crl [pasarCalleCola] :
+    fiesta(persona(NOM, EDAD, STATUS, COPAS) : C, L, C', AFORO, REFRESCOS, ALCOHOL) => fiesta(C, L', C', AFORO, REFRESCOS, ALCOHOL) 
+    if L' := insertarPersonaEnCola(L, persona(NOM, EDAD, STATUS, COPAS)) .
+
+    crl [pasarPrimeroEnCola] :
+    fiesta(C, persona(NOM, EDAD, STATUS, COPAS) ; L, C', s(AFORO), REFRESCOS, ALCOHOL) => fiesta(C, L, persona(NOM, EDAD, STATUS, COPAS) : C', AFORO, REFRESCOS, ALCOHOL)
+    if EDAD >= 18 .
+
+    crl [expulsarPrimeroEnCola] : 
+    fiesta(C, persona(NOM, EDAD, STATUS, COPAS) ; L, C', AFORO, REFRESCOS, ALCOHOL) => fiesta(persona(NOM, EDAD, STATUS, COPAS) : C, L, C', AFORO, REFRESCOS, ALCOHOL)
+    if EDAD < 18 .
+
+    *** La gente dentro del local puede decidir beber algo. Puede pedir un refresco si hay al menos 1
+    *** en la cantidad de refrescos, o pedir una copa (que consume 1 de alcohol y 1 de refresco) si ha
+    *** tomado menos de 4 copas.
+    ***
+    *** El manager no cuenta para el aforo, no toma copas y no se va nunca. Su única preocupación es echar a la gente.
+
+    rl [personaConsumeRefresco] : 
+    fiesta(C, L, persona(NOM, EDAD, STATUS, COPAS) : C', AFORO, s(REFRESCOS), ALCOHOL) => fiesta(C, L, persona(NOM, EDAD, STATUS, COPAS) : C', AFORO, REFRESCOS, ALCOHOL) .
+    
+    crl [personaConsumeCopa] : 
+    fiesta(C, L, persona(NOM, EDAD, STATUS, COPAS) : C', AFORO, s(REFRESCOS), s(ALCOHOL)) => fiesta(C, L, persona(NOM, EDAD, STATUS, COPAS + 1) : C', AFORO, REFRESCOS, ALCOHOL) 
+    if NOM =/= "Dabi" .
+
+    *** Cuando el manager (una persona llamada "Dabi") se encuentra a alguien que lleva 4 copas le echa (la persona a la que se echa desaparece de todo el sistema).
+
+    rl [dabiExpulsaPersona] : 
+    fiesta(C, L, persona(NOM, EDAD, STATUS, 4) : persona("Dabi", EDAD', STATUS', COPAS) : C', AFORO, REFRESCOS, ALCOHOL) 
+    => 
+    fiesta(C, L, persona("Dabi", EDAD', STATUS', COPAS) : C', AFORO + 1, REFRESCOS, ALCOHOL) .
+
+    *** La gente dentro del local también puede decidir irse en cualquier momento, desapareciendo del sistema.
+    
+    crl [personaSeVaDelLocal] : fiesta(C, L, P : C', AFORO, REFRESCOS, ALCOHOL) => fiesta(C, L, C', AFORO + 1, REFRESCOS, ALCOHOL) 
+    if personaGetNombre(P) =/= "Dabi" .
+
+    *** EJERCICIO 2 Escribe un término de ejemplo con 6 personas esperando, donde:
+    *** 2 personas son vip.
+    *** 1 persona (no vip) es menor de edad.
+
+    op miFiesta : -> Fiesta .
+    eq miFiesta = fiesta(
+        persona("MIKE", 24, true, 0) : *** VIP
+        persona("HOWARD", 25, false, 0) :
+        persona("STACEY", 17, false, 0) : *** No VIP menor
+        persona("CONRAD", 30, false, 0) :
+        persona("SAMANTHA", 26, true, 0) : *** VIP
+        persona("ELIZABETH", 23, false, 0)
+        , 
+        listaVacia
+        , 
+        persona("Dabi", 23, true, 0)
+        , 
+        4
+        ,
+        5
+        , 
+        6
+    ) .
+
+endm
+
+*** Para poder cargar el módulo SATISFACTION.
+load model-checker
+
+mod PROPS is
+
+    pr SATISFACTION .
+    pr FIESTA .
+
+    subsort Fiesta < State .
+
+    *** EJERCICIO 3 Define, usando lo que hayas definido en el apartado 1, propiedades para comprobar:
+    
+    var EDAD : Nat .
+    var COPAS : Nat .
+    var AFORO : Nat .
+    var NUMERO : Nat .
+    var L L' : Lista .
+    var ALCOHOL : Nat .
+    var STATUS : Bool .
+    var C C' : Conjunto .
+    var NOMBRE : String .
+    var REFRESCOS : Nat .
+    var FIESTA : Fiesta .
+    
+    *** Si se ha acabado el alcohol.
+    op seAcaboElAlcohol : -> Prop [ctor] .
+    eq fiesta(C, L, C', AFORO, REFRESCOS, 0) |= seAcaboElAlcohol = true .
+
+    *** Si se han acabado los refrescos.
+    op seAcabaronLosRefrescos : -> Prop [ctor] .
+    eq fiesta(C, L, C', AFORO, 0, ALCOHOL) |= seAcabaronLosRefrescos = true .
+
+    *** Si alguien (identificado por su nombre) está en la cola.
+    op estaEnCola : String -> Prop [ctor] .
+    eq fiesta(C, L ; persona(NOMBRE, EDAD, STATUS, COPAS) ; L', C', AFORO, REFRESCOS, ALCOHOL) |= estaEnCola(NOMBRE) = true .
+
+    *** Si alguien (identificado por su nombre) está en el local.
+    op estaEnLocal : String -> Prop [ctor] .
+    eq fiesta(C, L, C' : persona(NOMBRE, EDAD, STATUS, COPAS), AFORO, REFRESCOS, ALCOHOL) |= estaEnLocal(NOMBRE) = true .
+
+    *** Si el número de personas en el interior del local es menor de un cierto número dado como argumento.
+    op hayMenosDeTantasPersonas : Nat -> Prop [ctor] .
+    eq fiesta(C, L, C', AFORO, REFRESCOS, ALCOHOL) |= hayMenosDeTantasPersonas(NUMERO) = cuentaPersonas(C') < NUMERO .
+
+endm
+
+mod TEST is
+    *** Importa los modulos correspondientes
+    pr PROPS .
+    pr MODEL-CHECKER .
+    pr LTL-SIMPLIFIER .
+endm
+
+*** EJERCICIO 4 Comprueba si las siguientes propiedades se cumplen (explicando brevemente el resultado del model checker en cada caso):
+
+*** "Dabi" siempre está en el local.
+*** EXPLICACIÓN: Siempre es cierta ya que Dabi está dentro desde el principio e incluso permanece allí cuando todos se marchan.
+red modelCheck(miFiesta, [](estaEnLocal("Dabi"))) .
+
+*** Si el aforo no se supera al principio, entonces no se supera nunca.
+*** EXPLICACIÓN: Nunca se puede encontrar un contraejemplo con más aforo del máximo (4 personas), ya que las reglas se ocupan de ello, luego la propiedad siempre se cumple.
+red modelCheck(miFiesta, hayMenosDeTantasPersonas(5) -> [](hayMenosDeTantasPersonas(5))) .
+
+*** Si alguien está en la cola acaba entrando.
+*** EXPLICACIÓN: Siempre se encuentran los casos en los que el menor de edad queda fuera del local. Esta propiedad nunca se cumple cuando hay menores.
+red modelCheck(miFiesta, [](estaEnCola("STACEY") -> <>(estaEnLocal("STACEY")))) .
+*** EXPLICACIÓN: Siempre se cumple que cualquier mayor de edad que pasa a la cola acaba dentro del local. No hay ningún contraejemplo que diga lo contrario.
+red modelCheck(miFiesta, [](estaEnCola("MIKE") -> <>(estaEnLocal("MIKE")))) .
+
+*** El alcohol nunca se acaba.
+*** EXPLICACIÓN: Siempre es cierta, ya que como el alcohol va acompañado de refresco, este siempre se acaba antes, por lo que queda alguna una unidad de alcohol no consumible.
+red modelCheck(miFiesta, [](~(seAcaboElAlcohol))) .
+
+*** Los refrescos siempre se acaban.
+*** EXPLICACIÓN: No tiene porqué ser cierta siempre. Hay caminos por el arbol de estados en los que se forma un ciclo en el que alguna unidad de refresco siempre sobrevive.
+red modelCheck(miFiesta, [](<>(seAcabaronLosRefrescos))) .
+
+
+*** EJERCICIO 5 Escribe qué reglas podrían transformarse en ecuaciones para optimizar el model checking
+*** para cada una de las propiedades del apartado 3 (en este ejercicio basta que nombres las reglas a
+*** cambiar, no es necesario que realices modificaciones en el código).
+
+
+*** PROPIEDADES
+*** seAcaboElAlcohol
+*** seAcabaronLosRefrescos
+*** estaEnCola
+*** estaEnLocal
+*** hayMenosDeTantasPersonas
+
+
+*** REGLAS
+*** pasarCalleCola
+*** pasarPrimeroEnCola 
+*** personaConsumeCopa
+*** dabiExpulsaPersona
+*** personaSeVaDelLocal
+*** expulsarPrimeroEnCola
+*** personaConsumeRefresco
+
+
+*** PROPIEDAD ---------------------> REGLAS OPTIMIZABLES / REGLAS INVISIBLES
+*** seAcaboElAlcohol --------------> pasarCalleCola , pasarPrimeroEnCola , dabiExpulsaPersona , personaSeVaDelLocal , expulsarPrimeroEnCola , personaConsumeRefresco
+*** seAcabaronLosRefrescos --------> pasarCalleCola , pasarPrimeroEnCola , dabiExpulsaPersona , personaSeVaDelLocal , expulsarPrimeroEnCola
+*** estaEnCola --------------------> personaConsumeCopa , dabiExpulsaPersona , personaSeVaDelLocal , personaConsumeRefresco
+*** estaEnLocal -------------------> pasarCalleCola , personaConsumeCopa , expulsarPrimeroEnCola , personaConsumeRefresco
+*** hayMenosDeTantasPersonas ------> pasarCalleCola , personaConsumeCopa , expulsarPrimeroEnCola , personaConsumeRefresco

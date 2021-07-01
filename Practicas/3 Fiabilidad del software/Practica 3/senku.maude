@@ -1,0 +1,141 @@
+fmod TABLERO is
+
+    *** Conmutatividad de las listas: Si los elementos de esta fuesen conmutativos la lista pasaría a ser un CONJUNTO ya que al operador de 
+    *** unión de conjuntos "__" le daría igual si coger uno antes que otro y se perdería la relación de orden.
+
+    *** Asociatividad de las listas: La lista de elementos es asociativa pues no nos importa como se agrupan los elementos con los paréntesis, cualquier agrupación de estos da lo mismo.
+    *** Ejemplo de concatenación de elementos en una lista "hola" + " " + "mundo" (con '+' opr de union de cjtos no conmutativo) ==> ("hola"+" ") + ("mundo") = ("hola") + (" "+"mundo")
+
+    pr NAT . *** Importación del módulo funcional que define los números naturales.
+    sort Lista Matriz . *** Matriz compuesta por filas que con listas/arrays.
+    subsort Lista < Matriz . *** Lista/Array es un caso de Matriz.
+    subsort Nat < Lista . *** Un número es un caso de lista/array.
+    op lv : -> Lista [ctor] . *** posL(N L, 0) Cuando llegamos al último elemento de la lista, usamos el elemento neutro para poder seguir usando la función.
+    op __ : Lista Lista -> Lista [ctor assoc id: lv] .
+    op mv : -> Matriz [ctor] . *** posM(L \n M, 0, Y) Cuando llegamos a la última lista de la matriz ya no hay más matriz por debajo, usamos el elemento neutro para evitar eso.
+    op _\n_ : Matriz Matriz -> Matriz [ctor assoc id: mv] .
+    
+    var P N X Y : Nat . *** P(Posicion), N(Numero), X(Posicion fila), Y(Posicion columna)
+    var L : Lista . *** L(Lista)
+    var M : Matriz . *** M(Matriz)
+
+    *** Obtener el elemento de una posición de la matriz
+
+    op posL : Lista Nat ~> Nat . *** Parcial porque no hemos definido para la lista vacía.
+    eq posL(N L, 0) = N .
+    eq posL(N L, P) = posL(L, sd(P, 1)) [owise] .
+
+    op posM : Matriz Nat Nat ~> Nat . *** Parcial porque no hemos definido para la matriz vacía.
+    eq posM(L \n M, 0, Y) = posL(L, Y) .
+    eq posM(L \n M, X, Y) = posM(M, sd(X, 1), Y) [owise] .
+    
+    *** Averiguar el estado de una casilla
+
+    op estaPosicionLibre? : Matriz Nat Nat -> Bool .
+    eq estaPosicionLibre?(M, X, Y) = posM(M, X, Y) == 0 .
+
+    op estaPosicionOcupada? : Matriz Nat Nat -> Bool .
+    eq estaPosicionOcupada?(M, X, Y) = posM(M, X, Y) == 1 .
+
+    op estaPosicionProhibida? : Matriz Nat Nat -> Bool .
+    eq estaPosicionProhibida?(M, X, Y) = posM(M, X, Y) == 2 .
+
+    *** Comprobar que la posición esté dentro del tablero
+
+    ops alto ancho : -> Nat .
+    eq alto = 4 .
+    eq ancho = 4 .
+
+    op estaPosicionDentro? : Nat Nat -> Bool . 
+    eq estaPosicionDentro?(X, Y) = (X >= 0 and X <= ancho) and (Y >= 0 and Y <= alto) .
+
+    *** Tamaño de una lista
+
+    op tam : Lista -> Nat .
+    eq tam(lv) = 0 .
+    eq tam(N L) = 1 + tam(L) .
+
+    *** Contador de fichas del tablero
+
+    op cuentaFichasL : Lista -> Nat .
+    eq cuentaFichasL(lv) = 0 .
+    eq cuentaFichasL(N L) = if N == 1
+    then 1 + cuentaFichasL(L) 
+    else cuentaFichasL(L)
+    fi .
+
+    op cuentaFichasM : Matriz -> Nat .
+    eq cuentaFichasM(mv) = 0 .
+    eq cuentaFichasM(L \n M) = cuentaFichasL(L) + cuentaFichasM(M) .
+    
+    *** Instancias de los tableros
+
+    op initial : -> Matriz .
+    eq initial = (1 2 2 2 2) \n (1 1 2 2 2) \n (1 0 1 2 2) \n (1 1 1 1 2) \n (1 1 1 1 1) .
+
+    op perfect : -> Matriz .
+    eq perfect = (0 2 2 2 2) \n (0 0 2 2 2) \n (0 1 0 2 2) \n (0 0 0 0 2) \n (0 0 0 0 0) .
+
+endfm
+
+mod COMPORTAMIENTO is
+
+    pr TABLERO .
+    var L1 L2 L3 L4 L5 L6 : Lista .
+
+    rl [moverDerecha] : (L1 1 1 0 L2) => (L1 0 0 1 L2) .
+    
+    rl [moverIzquierda] : (L1 0 1 1 L2) => (L1 1 0 0 L2) . 
+    
+    crl [moverAbajo] : (L1 1 L2) \n (L3 1 L4) \n (L5 0 L6) => (L1 0 L2) \n (L3 0 L4) \n (L5 1 L6) 
+    if tam(L2) == tam(L4) /\ tam(L4) == tam(L6) .
+    
+    crl [moverArriba] : (L1 0 L2) \n (L3 1 L4) \n (L5 1 L6) => (L1 1 L2) \n (L3 0 L4) \n (L5 0 L6) 
+    if tam(L2) == tam(L4) /\ tam(L4) == tam(L6) .
+
+    crl [moverDiagonalArriba] : (L1 0 L2) \n (L3 1 L4) \n (L5 1 L6) => (L1 1 L2) \n (L3 0 L4) \n (L5 0 L6) 
+    if tam(L5) >= 2 /\ tam(L3) == sd(tam(L5), 1) /\ tam(L1) == sd(tam(L5), 2) .
+
+    crl [moverDiagonalAbajo] : (L1 1 L2) \n (L3 1 L4) \n (L5 0 L6) => (L1 0 L2) \n (L3 0 L4) \n (L5 1 L6) 
+    if tam(L5) >= 2 /\ tam(L3) == sd(tam(L5), 1) /\ tam(L1) == sd(tam(L5), 2) .
+
+endm
+
+search in COMPORTAMIENTO : initial =>! perfect . *** Mostrar el estado final
+
+search in COMPORTAMIENTO : initial =>! M:Matriz s.t. cuentaFichasM(M:Matriz) == 1 . *** such that --> tal que (para cumplir condiciones)
+
+***(
+
+frew [1] initial . 
+
+red 7 2 9 1 10 .
+red posL(3 4 5 7 8 9 11, 4) .
+
+red (1 2 3 4 5) \n (1 1 2 2 2) \n (1 1 1 2 2) \n (1 1 1 1 2) \n (0 1 1 1 1) .
+red posM((1 2 3 4 5) \n (9 8 7 6 2) \n (1 1 1 2 2) \n (191 1 1 1 2) \n (123 1 1 1 1), 4, 0) .
+
+red posM(initial, 0, 0) .
+
+red estaPosicionOcupada?(initial, 0, 0) .
+red estaPosicionOcupada?(initial, 0, 1) .
+red estaPosicionOcupada?(initial, 4, 0) .
+
+red estaPosicionLibre?(initial, 0, 0) .
+red estaPosicionLibre?(initial, 0, 1) .
+red estaPosicionLibre?(initial, 4, 0) .
+
+red estaPosicionProhibida?(initial, 0, 0) .
+red estaPosicionProhibida?(initial, 0, 1) .
+red estaPosicionProhibida?(initial, 4, 0) .
+
+red estaPosicionDentro?(4, 4) .
+red estaPosicionDentro?(5, 4) .
+red estaPosicionDentro?(4, 5) .
+
+red tam(1 2 3 4 5 6 7 8 9 10 11 12 13 14) .
+
+red cuentaFichasL(1 1 1 1 2 1 1 1 1) .
+
+red cuentaFichasM(perfect) .
+)
